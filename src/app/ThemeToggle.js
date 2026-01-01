@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-const API_URL = 'http://localhost:8000';
+// Backend API URL - Render deployment
+const API_URL = 'https://aigames.onrender.com';
 
 export default function ThemeToggle() {
   const [darkMode, setDarkMode] = useState(false);
