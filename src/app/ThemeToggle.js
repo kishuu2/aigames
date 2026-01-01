@@ -1,16 +1,19 @@
 'use client';
 import { useState, useEffect } from 'react';
 
+const API_URL = 'http://localhost:8000';
+
 export default function ThemeToggle() {
   const [darkMode, setDarkMode] = useState(false);
-  const [gameMode, setGameMode] = useState(null); // 'ai' or '2player'
+  const [gameMode, setGameMode] = useState(null);
   const [difficulty, setDifficulty] = useState(null);
   const [playerSymbol, setPlayerSymbol] = useState(null);
   const [currentPlayer, setCurrentPlayer] = useState('X');
-  const [board, setBoard] = useState(Array(9).fill(null));
+  const [board, setBoard] = useState(Array(9).fill(' '));
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [winner, setWinner] = useState(null);
   const [winningLine, setWinningLine] = useState([]);
+  const [isAiThinking, setIsAiThinking] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
@@ -19,6 +22,48 @@ export default function ThemeToggle() {
       document.body.classList.add('dark-mode');
     }
   }, []);
+
+  useEffect(() => {
+    if (winner) {
+      playWinnerSound(winner);
+    }
+  }, [winner]);
+
+  const playWinnerSound = (result) => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    if (result === 'draw') {
+      playTone(audioContext, [400, 400, 400], [0.1, 0.1, 0.1]);
+    } else if ((gameMode === 'ai' && result === playerSymbol) || gameMode === '2player') {
+      playTone(audioContext, [523, 659, 784, 1047], [0.1, 0.1, 0.1, 0.3]);
+    } else {
+      playTone(audioContext, [400, 350, 300, 250], [0.1, 0.1, 0.1, 0.2]);
+    }
+  };
+
+  const playTone = (audioContext, frequencies, durations) => {
+    let startTime = audioContext.currentTime;
+    
+    frequencies.forEach((freq, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = freq;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + durations[index]);
+      
+      oscillator.start(startTime);
+      oscillator.stop(startTime + durations[index]);
+      
+      startTime += durations[index];
+    });
+  };
 
   const toggleTheme = () => {
     if (darkMode) {
@@ -35,7 +80,7 @@ export default function ThemeToggle() {
   const selectGameMode = (mode) => {
     setGameMode(mode);
     if (mode === '2player') {
-      setPlayerSymbol('X'); // 2 player mode me directly game start
+      setPlayerSymbol('X');
       setCurrentPlayer('X');
     }
   };
@@ -48,7 +93,7 @@ export default function ThemeToggle() {
     setPlayerSymbol(symbol);
     if (symbol === 'O') {
       setIsPlayerTurn(false);
-      setTimeout(() => makeAIMove(Array(9).fill(null), 'X'), 500);
+      makeAIMove(Array(9).fill(' '), 'X');
     }
   };
 
@@ -61,72 +106,59 @@ export default function ThemeToggle() {
 
     for (let line of lines) {
       const [a, b, c] = line;
-      if (currentBoard[a] && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) {
+      if (currentBoard[a] !== ' ' && currentBoard[a] === currentBoard[b] && currentBoard[a] === currentBoard[c]) {
         return { winner: currentBoard[a], line };
       }
     }
 
-    if (currentBoard.every(cell => cell !== null)) {
+    if (!currentBoard.includes(' ')) {
       return { winner: 'draw', line: [] };
     }
 
     return null;
   };
 
-  const makeAIMove = (currentBoard, aiSymbol) => {
-    const availableMoves = currentBoard.map((cell, idx) => cell === null ? idx : null).filter(idx => idx !== null);
+  const makeAIMove = async (currentBoard, aiSymbol) => {
+    setIsAiThinking(true);
     
-    if (availableMoves.length === 0) return;
+    try {
+      const response = await fetch(`${API_URL}/api/ai-move`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          board: currentBoard,
+          difficulty: difficulty,
+          aiSymbol: aiSymbol
+        }),
+      });
 
-    let move;
-    if (difficulty === 'easy') {
-      move = availableMoves[Math.floor(Math.random() * availableMoves.length)];
-    } else {
-      move = getBestMove(currentBoard, aiSymbol);
+      const data = await response.json();
+      
+      setTimeout(() => {
+        setBoard(data.board);
+        
+        if (data.winner) {
+          setWinner(data.winner);
+          setWinningLine(data.winningLine);
+        } else {
+          setIsPlayerTurn(true);
+        }
+        setIsAiThinking(false);
+      }, 500);
+      
+    } catch (error) {
+      console.error('AI move error:', error);
+      setIsAiThinking(false);
+      alert('Backend se connection nahi ho paya! Make sure Python server running hai on port 8000');
     }
-
-    const newBoard = [...currentBoard];
-    newBoard[move] = aiSymbol;
-    setBoard(newBoard);
-
-    const result = checkWinner(newBoard);
-    if (result) {
-      setWinner(result.winner);
-      setWinningLine(result.line);
-    } else {
-      setIsPlayerTurn(true);
-    }
-  };
-
-  const getBestMove = (currentBoard, aiSymbol) => {
-    const playerSym = aiSymbol === 'X' ? 'O' : 'X';
-    const availableMoves = currentBoard.map((cell, idx) => cell === null ? idx : null).filter(idx => idx !== null);
-
-    for (let move of availableMoves) {
-      const testBoard = [...currentBoard];
-      testBoard[move] = aiSymbol;
-      if (checkWinner(testBoard)?.winner === aiSymbol) return move;
-    }
-
-    for (let move of availableMoves) {
-      const testBoard = [...currentBoard];
-      testBoard[move] = playerSym;
-      if (checkWinner(testBoard)?.winner === playerSym) return move;
-    }
-
-    if (currentBoard[4] === null) return 4;
-
-    const corners = [0, 2, 6, 8].filter(idx => currentBoard[idx] === null);
-    if (corners.length > 0) return corners[Math.floor(Math.random() * corners.length)];
-
-    return availableMoves[Math.floor(Math.random() * availableMoves.length)];
   };
 
   const handleCellClick = (index) => {
-    if (board[index] !== null || winner) return;
+    if (board[index] !== ' ' || winner || isAiThinking) return;
 
     if (gameMode === '2player') {
-      // 2 Player mode
       const newBoard = [...board];
       newBoard[index] = currentPlayer;
       setBoard(newBoard);
@@ -139,7 +171,6 @@ export default function ThemeToggle() {
         setCurrentPlayer(currentPlayer === 'X' ? 'O' : 'X');
       }
     } else {
-      // AI mode
       if (!isPlayerTurn) return;
 
       const newBoard = [...board];
@@ -153,21 +184,22 @@ export default function ThemeToggle() {
       } else {
         setIsPlayerTurn(false);
         const aiSymbol = playerSymbol === 'X' ? 'O' : 'X';
-        setTimeout(() => makeAIMove(newBoard, aiSymbol), 500);
+        makeAIMove(newBoard, aiSymbol);
       }
     }
   };
 
   const resetGame = () => {
-    setBoard(Array(9).fill(null));
+    setBoard(Array(9).fill(' '));
     setWinner(null);
     setWinningLine([]);
     setCurrentPlayer('X');
+    setIsAiThinking(false);
     
     if (gameMode === 'ai') {
       setIsPlayerTurn(playerSymbol === 'X');
       if (playerSymbol === 'O') {
-        setTimeout(() => makeAIMove(Array(9).fill(null), 'X'), 500);
+        makeAIMove(Array(9).fill(' '), 'X');
       }
     }
   };
@@ -176,14 +208,14 @@ export default function ThemeToggle() {
     setGameMode(null);
     setDifficulty(null);
     setPlayerSymbol(null);
-    setBoard(Array(9).fill(null));
+    setBoard(Array(9).fill(' '));
     setWinner(null);
     setWinningLine([]);
     setIsPlayerTurn(true);
     setCurrentPlayer('X');
+    setIsAiThinking(false);
   };
 
-  // Game Mode Selection Screen
   if (gameMode === null) {
     return (
       <>
@@ -216,7 +248,7 @@ export default function ThemeToggle() {
               <button onClick={() => selectGameMode('ai')} className="difficulty-btn easy-btn">
                 <span className="btn-icon">🤖</span>
                 <span className="btn-text">AI Mode</span>
-                <span className="btn-desc">Play with commputer</span>
+                <span className="btn-desc">Play with computer</span>
               </button>
 
               <button onClick={() => selectGameMode('2player')} className="difficulty-btn hard-btn">
@@ -231,7 +263,6 @@ export default function ThemeToggle() {
     );
   }
 
-  // Difficulty Selection Screen (only for AI mode)
   if (gameMode === 'ai' && difficulty === null) {
     return (
       <>
@@ -258,19 +289,19 @@ export default function ThemeToggle() {
         <div className="difficulty-container">
           <div className="difficulty-content">
             <h1 className="difficulty-title">Tic Tac Toe</h1>
-            <p className="difficulty-subtitle">AI difficulty select karo:</p>
+            <p className="difficulty-subtitle">AI difficulty:</p>
             
             <div className="difficulty-buttons">
               <button onClick={() => selectDifficulty('easy')} className="difficulty-btn easy-btn">
                 <span className="btn-icon">😊</span>
                 <span className="btn-text">Easy</span>
-                <span className="btn-desc">For Beginners</span>
+                <span className="btn-desc">Random moves</span>
               </button>
 
               <button onClick={() => selectDifficulty('hard')} className="difficulty-btn hard-btn">
                 <span className="btn-icon">🔥</span>
                 <span className="btn-text">Hard</span>
-                <span className="btn-desc">For Pro players</span>
+                <span className="btn-desc">Minimax Algorithm</span>
               </button>
             </div>
 
@@ -281,7 +312,6 @@ export default function ThemeToggle() {
     );
   }
 
-  // Symbol Selection Screen (only for AI mode)
   if (gameMode === 'ai' && playerSymbol === null) {
     return (
       <>
@@ -307,7 +337,7 @@ export default function ThemeToggle() {
 
         <div className="symbol-container">
           <div className="symbol-content">
-            <h1 className="symbol-title">Your symbol ?</h1>
+            <h1 className="symbol-title">Your symbol?</h1>
             <p className="symbol-subtitle">Difficulty: <span className={difficulty === 'easy' ? 'badge-easy' : 'badge-hard'}>{difficulty.toUpperCase()}</span></p>
             
             <div className="symbol-buttons">
@@ -329,7 +359,6 @@ export default function ThemeToggle() {
     );
   }
 
-  // Game Board Screen
   return (
     <>
       <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle theme">
@@ -367,7 +396,6 @@ export default function ThemeToggle() {
                   <>
                     <span className="info-badge">You: {playerSymbol}</span>
                     <span className="info-badge">AI: {playerSymbol === 'X' ? 'O' : 'X'}</span>
-                    
                   </>
                 )}
               </div>
@@ -391,10 +419,12 @@ export default function ThemeToggle() {
               <div className="turn-indicator">
                 {gameMode === '2player' ? (
                   `🎯 Player ${currentPlayer} turn!`
+                ) : isAiThinking ? (
+                  "🤖 AI thinking..."
                 ) : isPlayerTurn ? (
                   "🎯 Your turn!"
                 ) : (
-                  "🤖 AI Think..."
+                  "🤖 AI processing..."
                 )}
               </div>
             )}
@@ -407,9 +437,9 @@ export default function ThemeToggle() {
                     winningLine.includes(index) ? 'winning-cell' : ''
                   }`}
                   onClick={() => handleCellClick(index)}
-                  disabled={gameMode === 'ai' && (!isPlayerTurn || cell !== null || winner)}
+                  disabled={gameMode === 'ai' && (!isPlayerTurn || cell !== ' ' || winner || isAiThinking)}
                 >
-                  {cell}
+                  {cell !== ' ' ? cell : ''}
                 </button>
               ))}
             </div>

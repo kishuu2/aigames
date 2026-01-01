@@ -41,7 +41,7 @@ export const metadata = {
     siteName: "Tic Tac Toe Online",
     images: [
       {
-        url: "/og-image.jpg", // 👉 add this image
+        url: "og-image.jpg", // 👉 add this image
         width: 1200,
         height: 630,
         alt: "Tic Tac Toe Online Game",
@@ -60,7 +60,7 @@ export const metadata = {
   },
 
   icons: {
-    icon: "/favicon.png",
+    icon: "favicon.png",
   },
 
   robots: {
