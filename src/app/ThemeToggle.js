@@ -1,11 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-// Backend API URL - Render deployment
 const API_URL = 'https://aigames.onrender.com';
 
-export default function ThemeToggle() {
+export default function AIGamesApp() {
   const [darkMode, setDarkMode] = useState(false);
+  const [selectedGame, setSelectedGame] = useState(null);
   const [gameMode, setGameMode] = useState(null);
   const [difficulty, setDifficulty] = useState(null);
   const [playerSymbol, setPlayerSymbol] = useState(null);
@@ -76,6 +76,10 @@ export default function ThemeToggle() {
       localStorage.setItem('theme', 'dark');
       setDarkMode(true);
     }
+  };
+
+  const selectGame = (game) => {
+    setSelectedGame(game);
   };
 
   const selectGameMode = (mode) => {
@@ -152,7 +156,7 @@ export default function ThemeToggle() {
     } catch (error) {
       console.error('AI move error:', error);
       setIsAiThinking(false);
-      alert('Backend se connection nahi ho paya! Make sure Python server running hai on port 8000');
+      alert('Backend connection failed! Make sure Python server is running.');
     }
   };
 
@@ -217,7 +221,99 @@ export default function ThemeToggle() {
     setIsAiThinking(false);
   };
 
-  if (gameMode === null) {
+  const backToGameSelection = () => {
+    setSelectedGame(null);
+    setGameMode(null);
+    setDifficulty(null);
+    setPlayerSymbol(null);
+    setBoard(Array(9).fill(' '));
+    setWinner(null);
+    setWinningLine([]);
+    setIsPlayerTurn(true);
+    setCurrentPlayer('X');
+    setIsAiThinking(false);
+  };
+
+  // Game Selection Grid
+  if (selectedGame === null) {
+    return (
+      <>
+        <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle theme">
+          {darkMode ? (
+            <svg className="icon icon-sun" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          ) : (
+            <svg className="icon icon-moon" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </button>
+
+        <div className="home-container">
+          <div className="home-content">
+            <h1 className="home-title">AI Games</h1>
+            <p className="home-subtitle">Play classic games with AI opponents</p>
+            
+            <div className="games-grid">
+              <button onClick={() => selectGame('tictactoe')} className="game-card available">
+                <div className="game-icon">⭕❌</div>
+                <h3 className="game-name">Tic Tac Toe</h3>
+                <p className="">Classic 3x3 grid game</p>
+                <span className="play-badge">Play Now</span>
+              </button>
+
+              <div className="game-card coming-soon">
+                <div className="game-icon">♟️</div>
+                <h3 className="game-name">Chess</h3>
+                <p className="game-desc">Strategic board game</p>
+                <span className="coming-badge">Coming Soon</span>
+              </div>
+
+              <div className="game-card coming-soon">
+                <div className="game-icon">🎯</div>
+                <h3 className="game-name">Connect 4</h3>
+                <p className="game-desc">4-in-a-row challenge</p>
+                <span className="coming-badge">Coming Soon</span>
+              </div>
+
+              <div className="game-card coming-soon">
+                <div className="game-icon">🎲</div>
+                <h3 className="game-name">Checkers</h3>
+                <p className="game-desc">Jump and capture</p>
+                <span className="coming-badge">Coming Soon</span>
+              </div>
+
+              <div className="game-card coming-soon">
+                <div className="game-icon">🧩</div>
+                <h3 className="game-name">Sudoku</h3>
+                <p className="game-desc">Number puzzle</p>
+                <span className="coming-badge">Coming Soon</span>
+              </div>
+
+              <div className="game-card coming-soon">
+                <div className="game-icon">🃏</div>
+                <h3 className="game-name">Card Games</h3>
+                <p className="game-desc">Various card battles</p>
+                <span className="coming-badge">Coming Soon</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Tic Tac Toe Game Mode Selection
+  if (selectedGame === 'tictactoe' && gameMode === null) {
     return (
       <>
         <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle theme">
@@ -258,12 +354,15 @@ export default function ThemeToggle() {
                 <span className="btn-desc">Play with partner</span>
               </button>
             </div>
+
+            <button onClick={backToGameSelection} className="back-btn-small">← Back to Games</button>
           </div>
         </div>
       </>
     );
   }
 
+  // Difficulty Selection
   if (gameMode === 'ai' && difficulty === null) {
     return (
       <>
@@ -296,7 +395,7 @@ export default function ThemeToggle() {
               <button onClick={() => selectDifficulty('easy')} className="difficulty-btn easy-btn">
                 <span className="btn-icon">😊</span>
                 <span className="btn-text">Easy</span>
-                <span className="btn-desc">Random moves</span>
+                <span className="btn-desc">Random + Smart moves</span>
               </button>
 
               <button onClick={() => selectDifficulty('hard')} className="difficulty-btn hard-btn">
@@ -306,13 +405,14 @@ export default function ThemeToggle() {
               </button>
             </div>
 
-            <button onClick={() => setGameMode(null)} className="back-btn-small">← Back</button>
+            <button onClick={backToGameSelection} className="back-btn-small">← Back</button>
           </div>
         </div>
       </>
     );
   }
 
+  // Symbol Selection
   if (gameMode === 'ai' && playerSymbol === null) {
     return (
       <>
@@ -360,6 +460,7 @@ export default function ThemeToggle() {
     );
   }
 
+  // Game Board
   return (
     <>
       <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle theme">
@@ -477,6 +578,10 @@ export default function ThemeToggle() {
                 <button onClick={backToMenu} className="sidebar-btn menu-btn">
                   <span className="btn-icon-small">🏠</span>
                   <span>Main Menu</span>
+                </button>
+                <button onClick={backToGameSelection} className="sidebar-btn games-btn">
+                  <span className="btn-icon-small">🎮</span>
+                  <span>All Games</span>
                 </button>
               </div>
             </div>
